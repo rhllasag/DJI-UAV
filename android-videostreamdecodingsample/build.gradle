@@ -1,0 +1,84 @@
+buildscript {
+    repositories {
+        jcenter()
+        google()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:3.1.4'
+        classpath 'com.google.gms:google-services:3.2.1'
+    }
+}
+apply plugin: 'com.android.application'
+
+allprojects {
+    repositories {
+        jcenter()
+        google()
+    }
+}
+android {
+    compileSdkVersion 27
+    buildToolsVersion '27.0.3'
+
+    defaultConfig {
+        applicationId "ipl.pt.appmobilesdk"
+        minSdkVersion 21
+        targetSdkVersion 24
+        multiDexEnabled true
+        externalNativeBuild {
+            cmake {
+                cppFlags ""
+                abiFilters 'x86', 'x86_64', 'armeabi', 'armeabi-v7a', 'arm64-v8a', 'mips', 'mips64'
+            }
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    sourceSets {
+        main {
+            sourceSets{
+                main {
+                    jni.srcDir 'libs'
+                    jni.srcDirs =[]
+                    jniLibs.srcDirs = ['src/main/jni']
+                }
+            }
+        }
+    }
+    packagingOptions{
+        doNotStrip "*/*/libdjivideo.so"
+        doNotStrip "*/*/libSDKRelativeJNI.so"
+        doNotStrip "*/*/libFlyForbid.so"
+        doNotStrip "*/*/libduml_vision_bokeh.so"
+        doNotStrip "*/*/libyuv2.so"
+        doNotStrip "*/*/libGroudStation.so"
+        doNotStrip "*/*/libFRCorkscrew.so"
+        doNotStrip "*/*/libUpgradeVerify.so"
+        doNotStrip "*/*/libFR.so"
+        exclude 'META-INF/rxjava.properties'
+    }
+    externalNativeBuild {
+        cmake {
+            path 'CMakeLists.txt'
+        }
+    }
+}
+
+dependencies {
+    compile fileTree(include: ['*.jar'], dir: 'libs')
+    compile 'com.android.support:multidex:1.0.2'
+    compile 'com.android.support:appcompat-v7:27.1.1'
+    compile 'com.dji:dji-sdk:4.5.1'
+    provided 'com.dji:dji-sdk-provided:4.5.1'
+    compile 'com.github.nkzawa:socket.io-client:0.3.0'
+    implementation 'com.github.nkzawa:socket.io-client:0.5.2'
+    compile('io.socket:socket.io-client:0.8.3') {
+        // excluding org.json which is provided by Android
+        exclude group: 'org.json', module: 'json'
+    }
+    implementation project(':openCVLibrary343')
+}
