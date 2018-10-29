@@ -7,10 +7,12 @@
 .DS_Store
 /build
 /captures
-.externalNativeBuild
 /.idea/caches
 /.idea/grandle.xml
 /.idea/misc.xml
 /.idea/vcs.xml
 /.idea/runConfigurations.xml
-android-videostreamdecodingsample
+android-videostreamdecodingsample/.externalNativeBuild
+android-videostreamdecodingsample/.idea
+android-videostreamdecodingsample/.gradle
+android-videostreamdecodingsample/app/build
