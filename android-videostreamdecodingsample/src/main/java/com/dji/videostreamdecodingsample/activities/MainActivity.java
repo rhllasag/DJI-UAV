@@ -25,6 +25,7 @@ import com.dji.videostreamdecodingsample.main.DJIApplication;
 import com.dji.videostreamdecodingsample.media.DJIVideoStreamDecoder;
 
 import com.dji.videostreamdecodingsample.media.NativeHelper;
+import com.dji.videostreamdecodingsample.models.PeriodicalStateData;
 import com.dji.videostreamdecodingsample.services.Assetbridge;
 import com.dji.videostreamdecodingsample.services.Server;
 import com.dji.videostreamdecodingsample.utils.ModuleVerificationUtil;
@@ -39,10 +40,22 @@ import dji.common.battery.BatteryState;
 import dji.common.camera.SettingsDefinitions;
 import dji.common.error.DJIError;
 import dji.common.flightcontroller.FlightControllerState;
+import dji.common.flightcontroller.ObstacleDetectionSector;
+import dji.common.flightcontroller.VisionControlState;
+import dji.common.flightcontroller.VisionDetectionState;
+import dji.common.flightcontroller.adsb.AirSenseSystemInformation;
+import dji.common.flightcontroller.flightassistant.SmartCaptureState;
+import dji.common.flightcontroller.simulator.InitializationData;
 import dji.common.flightcontroller.simulator.SimulatorState;
+import dji.common.model.LocationCoordinate2D;
 import dji.common.remotecontroller.ChargeRemaining;
+import dji.common.remotecontroller.GPSData;
 import dji.common.remotecontroller.HardwareState;
 import dji.common.util.CommonCallbacks;
+import dji.keysdk.FlightControllerKey;
+import dji.keysdk.KeyManager;
+import dji.sdk.base.DJIDiagnostics;
+import dji.sdk.flightcontroller.FlightAssistant;
 import dji.sdk.flightcontroller.FlightController;
 import dji.sdk.flightcontroller.Simulator;
 import dji.sdk.mobilerc.MobileRemoteController;
@@ -61,21 +74,25 @@ import io.socket.client.Socket;
 import io.socket.emitter.Emitter;
 
 import java.nio.ByteBuffer;
+import java.util.List;
 
 public class MainActivity extends Activity implements DJICodecManager.YuvDataCallback {
     //Socket connection
     private Socket socket;
     //Data for period times
     Handler handlerPeriodTimeData = new Handler();
-    int delay = 2*1000; //1 second=1000 miliseconds, 15*1000=15seconds
+    int delay = 15*1000; //1 second=1000 miliseconds, 15*1000=15seconds
     Runnable  runnable;
     //Connection Callback
     private RemoteController remoteController;
     private FlightController flightController;
+    private FlightAssistant intelligentFlightAssistant;
+    private FlightControllerKey isSimulatorActived;
     private Simulator simulator;
     private MobileRemoteController mobileRemoteController;
     private BaseProduct baseProduct;
-    //
+    private PeriodicalStateData periodicalStateData;
+    //Image and Video
     private Activity activity=this;
     private static final String TAG = MainActivity.class.getSimpleName();
     private SurfaceHolder.Callback surfaceCallback;
@@ -83,7 +100,6 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
     private boolean bProcessing =false;
     private Mat tmp;
     private YuvImage yuvImage;
-
     private enum DemoType { USE_TEXTURE_VIEW, USE_SURFACE_VIEW, USE_SURFACE_VIEW_DEMO_DECODER}
     private static DemoType demoType = DemoType.USE_TEXTURE_VIEW;
     public TextView infoip, msg;
@@ -96,6 +112,7 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
     private Camera mCamera;
     private DJICodecManager mCodecManager;
     private Button screenShot;
+    private Button simulate;
     private StringBuilder stringBuilder;
     private int videoViewWidth;
     private int videoViewHeight;
@@ -162,7 +179,14 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         if(baseProduct!=null){
             baseProduct.getBattery().setStateCallback(null);
         }
+        Simulator simulator = ModuleVerificationUtil.getSimulator();
+        if (simulator != null) {
+            simulator.setStateCallback(null);
+        }
         super.onDestroy();
+    }
+    private void initAllKeys() {
+        isSimulatorActived = FlightControllerKey.create(FlightControllerKey.IS_SIMULATOR_ACTIVE);
     }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -171,17 +195,38 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         socket = app.getSocket();
         socket.on("joystickPossitionChanged",joystickPossitionChanged);
         socket.connect();
+        periodicalStateData = new PeriodicalStateData();
+        periodicalStateData.setFirstReading(true);
         handlerPeriodTimeData.postDelayed( runnable = new Runnable() {
             public void run() {
-
-
 
                 handlerPeriodTimeData.postDelayed(runnable,delay);
             }
         }, delay);
+        if (DJIApplication.isAircraftConnected()) {
+            baseProduct=DJIApplication.getProductInstance();
+            baseProduct.getBattery().setStateCallback(new BatteryState.Callback() {
+                @Override
+                public void onUpdate(BatteryState batteryState) {
+                    if(batteryState.getChargeRemainingInPercent()!=periodicalStateData.getAircraftBattery()) {
+                        JSONObject jsonBattery = new JSONObject();
+                        try {
+                            jsonBattery.put("batteryLevel", batteryState.getChargeRemainingInPercent());
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                        socket.emit("newBatteryLevel", jsonBattery);
+                    }
+                    periodicalStateData.setAircraftBattery(batteryState.getChargeRemainingInPercent());
+                }
+            });
+
+        }
+        else {
+            System.out.println("is Aircraft Disconnected");
+        }
         if (ModuleVerificationUtil.isFlightControllerAvailable()) {
             flightController =((Aircraft) DJIApplication.getProductInstance()).getFlightController();
-
             simulator=flightController.getSimulator();
             simulator.setStateCallback(new SimulatorState.Callback() {
                 @Override
@@ -189,21 +234,84 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
                     if(simulatorState.areMotorsOn())
                         System.out.println("Motors On");
                     else
-                       // System.out.println("Motors Off");
+                        System.out.println("Motors Off");
                 }
             });
+
+            if(flightController.isFlightAssistantSupported()){
+            intelligentFlightAssistant=flightController.getFlightAssistant();
+            if (intelligentFlightAssistant != null) {
+
+                intelligentFlightAssistant.setVisionDetectionStateUpdatedCallback(new VisionDetectionState.Callback() {
+                    @Override
+                    public void onUpdate(@NonNull VisionDetectionState visionDetectionState) {
+                            //Sensors
+                            if(periodicalStateData.isSensorBeingUsedFlightAssistant()!=visionDetectionState.isSensorBeingUsed()) {
+                                System.out.println("Flight Controller sensors:" + visionDetectionState.isSensorBeingUsed());
+                                JSONObject jsonSensorBeingUsed = new JSONObject();
+                                try {
+                                    jsonSensorBeingUsed.put("sensorBeingUsed", visionDetectionState.isSensorBeingUsed());
+
+                                } catch (JSONException e) {
+                                    e.printStackTrace();
+                                }
+                                socket.emit("newFlightAssistantState", jsonSensorBeingUsed);
+                            }
+                        periodicalStateData.setSensorBeingUsedFlightAssistant(visionDetectionState.isSensorBeingUsed());
+                        //Obstacules
+                        visionDetectionState.getObstacleDistanceInMeters();
+                    }
+                });
+                intelligentFlightAssistant.setVisionControlStateUpdatedcallback(new VisionControlState.Callback() {
+                    @Override
+                    public void onUpdate(VisionControlState visionControlState) {
+                    }
+                });
+            }
+        } else {
+            System.out.println("onAttachedToWindow FC NOT Available");
+        }
             flightController.setStateCallback(new FlightControllerState.Callback() {
                 @Override
                 public void onUpdate(@NonNull FlightControllerState flightControllerState) {
-                    System.out.println("Flight Controller GPS:" +flightControllerState.getSatelliteCount());
-                    JSONObject jsonAirlink = new JSONObject();
-                    try {
-                        jsonAirlink.put("gpsSignalStatus", flightControllerState.getSatelliteCount());
+                    //Satelite Counts
+                    if(periodicalStateData.getFlightControllerGPSSatelliteCount()!=flightControllerState.getSatelliteCount()) {
+                        System.out.println("Flight Controller GPS:" + flightControllerState.getSatelliteCount());
+                        JSONObject jsonAirlink = new JSONObject();
+                        try {
+                            jsonAirlink.put("gpsSignalStatus", flightControllerState.getSatelliteCount());
 
-                    } catch (JSONException e) {
-                        e.printStackTrace();
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                        socket.emit("newGPSSignalStatus", jsonAirlink);
                     }
-                    socket.emit("newGPSSignalStatus",jsonAirlink);
+                    periodicalStateData.setFlightControllerGPSSatelliteCount(flightControllerState.getSatelliteCount());
+                    //Battery Required to RTH
+                    if(periodicalStateData.getAircraftBatteryPercentageNeededToGoHome()!=flightControllerState.getGoHomeAssessment().getBatteryPercentageNeededToGoHome()){
+                        System.out.println("Flight Controller Battery Needed to RTH:" + flightControllerState.getSatelliteCount());
+                        JSONObject jsonBattery = new JSONObject();
+                        try {
+                            jsonBattery.put("batteryNeededRTH", flightControllerState.getGoHomeAssessment().getBatteryPercentageNeededToGoHome());
+
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                        socket.emit("newBatteryANeededRTH", jsonBattery);
+                    }
+                    periodicalStateData.setAircraftBatteryPercentageNeededToGoHome(flightControllerState.getGoHomeAssessment().getBatteryPercentageNeededToGoHome());
+                    //Flight Time
+                    if(periodicalStateData.getFlightTime()!=flightControllerState.getFlightTimeInSeconds()){
+                        JSONObject flightTime = new JSONObject();
+                        try {
+                            flightTime.put("flightTime", secToTime(flightControllerState.getGoHomeAssessment().getBatteryPercentageNeededToGoHome()));
+
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                        socket.emit("newFlightTime", flightTime);
+                    }
+                    periodicalStateData.setFlightTime(flightControllerState.getFlightTimeInSeconds());
                 }
             });
         }
@@ -212,20 +320,23 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
             remoteController.setChargeRemainingCallback(new ChargeRemaining.Callback() {
                 @Override
                 public void onUpdate(@NonNull ChargeRemaining chargeRemaining) {
-                    System.out.println("Remote Controller Battery:" +chargeRemaining.getRemainingChargeInPercent());
-                    JSONObject jsonRCStatus = new JSONObject();
-                    try {
-                        jsonRCStatus.put("batteryLevel",chargeRemaining.getRemainingChargeInPercent());
-                    } catch (JSONException e) {
-                        e.printStackTrace();
+                    if(periodicalStateData.getRemoteControllerBattery()!=chargeRemaining.getRemainingChargeInPercent()) {
+                        System.out.println("Remote Controller Battery:" + chargeRemaining.getRemainingChargeInPercent());
+                        JSONObject jsonRCStatus = new JSONObject();
+                        try {
+                            jsonRCStatus.put("batteryLevel", chargeRemaining.getRemainingChargeInPercent());
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                        socket.emit("newRCConnectionStatus", jsonRCStatus);
                     }
-                    socket.emit("newRCConnectionStatus",jsonRCStatus);
-
+                    periodicalStateData.setRemoteControllerBattery(chargeRemaining.getRemainingChargeInPercent());
                 }
             });
             remoteController.setHardwareStateCallback(new HardwareState.HardwareStateCallback() {
                 @Override
                 public void onUpdate(@NonNull HardwareState hardwareState) {
+                    if(periodicalStateData.getRemoteControllerSwitchMode()!=hardwareState.getFlightModeSwitch().value()){
                     System.out.println("Remote Controller Switch Mode:" +hardwareState.getFlightModeSwitch().value());
                     JSONObject jsonFlightSwitch = new JSONObject();
                     try {
@@ -234,35 +345,46 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
                         e.printStackTrace();
                     }
                     socket.emit("newFlightModeSwitch",jsonFlightSwitch);
+                    }
+                    periodicalStateData.setRemoteControllerSwitchMode(hardwareState.getFlightModeSwitch().value());
                 }
             });
+
         }
         else {
             System.out.println("is Remote Controller Disconnected");
         }
-
-        if (DJIApplication.isAircraftConnected()) {
-            baseProduct=DJIApplication.getProductInstance();
-            baseProduct.getBattery().setStateCallback(new BatteryState.Callback() {
-                @Override
-                public void onUpdate(BatteryState batteryState) {
-                    System.out.println("Aircraft Batery Level: "+batteryState.getChargeRemainingInPercent());
-                    JSONObject jsonBattery = new JSONObject();
-                    try {
-                        jsonBattery.put("batteryLevel",batteryState.getChargeRemainingInPercent());
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    }
-                    socket.emit("newBatteryLevel", jsonBattery);
-                }
-            });
-
+        //Sending the first data collected of the sensors
+        if(socket.connected()&&periodicalStateData.isFirstReading()){
+            JSONObject jsonFlightSwitch = new JSONObject();
+            JSONObject jsonRCStatus = new JSONObject();
+            JSONObject jsonAirlink = new JSONObject();
+            JSONObject jsonBattery = new JSONObject();
+            JSONObject jsonSensorBeingUsed = new JSONObject();
+            JSONObject jsonBatteryNRTH = new JSONObject();
+            JSONObject flightTime = new JSONObject();
+            try {
+                jsonFlightSwitch.put("flightMode",periodicalStateData.getRemoteControllerSwitchMode());
+                jsonRCStatus.put("batteryLevel", periodicalStateData.getRemoteControllerBattery());
+                jsonAirlink.put("gpsSignalStatus", periodicalStateData.getFlightControllerGPSSatelliteCount());
+                jsonBattery.put("batteryLevel", periodicalStateData.getAircraftBattery());
+                jsonSensorBeingUsed.put("sensorBeingUsed", periodicalStateData.isSensorBeingUsedFlightAssistant());
+                jsonBatteryNRTH.put("batteryNeededRTH", periodicalStateData.getAircraftBatteryPercentageNeededToGoHome());
+                flightTime.put("flightTime", secToTime(periodicalStateData.getFlightTime()));
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+            socket.emit("newFlightModeSwitch",jsonFlightSwitch);
+            socket.emit("newRCConnectionStatus", jsonRCStatus);
+            socket.emit("newGPSSignalStatus", jsonAirlink);
+            socket.emit("newBatteryLevel", jsonBattery);
+            socket.emit("sensorBeingUsed", jsonSensorBeingUsed);
+            socket.emit("newBatteryNeededRTH", jsonBatteryNRTH);
+            socket.emit("newFlightTime", flightTime);
         }
-        else {
-            System.out.println("is Aircraft Disconnected");
-        }
-
+        periodicalStateData.setFirstReading(false);
         setContentView(R.layout.activity_main);
+        initAllKeys();
         initUi();
         Thread cThread = new Thread(new Server(this,handler));
         cThread.start();
@@ -295,6 +417,8 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
     private void initUi() {
         screenShot = (Button) findViewById(R.id.activity_main_screen_shot);
         screenShot.setSelected(false);
+        simulate=(Button)findViewById(R.id.activity_main_simulator);
+        simulate.setSelected(false);
         infoip = (TextView) findViewById(R.id.infoip);
         msg = (TextView) findViewById(R.id.msg);
         titleTv = (TextView) findViewById(R.id.title_tv);
@@ -608,8 +732,36 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         if (v.getId() == R.id.activity_main_screen_shot) {
             handleYUVClick();
         }
-    }
+        if(v.getId()==R.id.activity_main_simulator){
+            onClickSimulator();
+        }
 
+    }
+    private void onClickSimulator() {
+        Simulator simulator = ModuleVerificationUtil.getSimulator();
+        if (simulator == null) {
+            return;
+        }
+        if (simulate.isSelected()) {
+            simulate.setText("Flight");
+            simulate.setSelected(false);
+            simulator.start(InitializationData.createInstance(new LocationCoordinate2D(23, 113), 10, 10),
+                    new CommonCallbacks.CompletionCallback() {
+                        @Override
+                        public void onResult(DJIError djiError) {
+                        }
+                    });
+        } else {
+            simulate.setText("Simulate");
+            simulate.setSelected(true);
+            simulator.stop(new CommonCallbacks.CompletionCallback() {
+                @Override
+                public void onResult(DJIError djiError) {
+
+                }
+            });
+        }
+    }
     private void handleYUVClick() {
         if (screenShot.isSelected()) {
             screenShot.setText("Transmit");
@@ -644,6 +796,10 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
 
         }
     }
-
+    public String secToTime(int sec) {
+        int seconds = sec % 60;
+        int minutes = sec / 60;
+        return String.format("%02d:%02d", minutes, seconds);
+    }
 
 }
