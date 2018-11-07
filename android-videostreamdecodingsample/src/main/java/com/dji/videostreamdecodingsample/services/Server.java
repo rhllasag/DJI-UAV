@@ -85,11 +85,11 @@ public class Server implements  Runnable{
 					while (true){
 						DataOutputStream dos = new DataOutputStream(outputStream);
 						dos.write(intToByteArray(mActivityInstance.mFrames.size()));
-						System.out.println("Frame size:"+mActivityInstance.mFrames.size());
+						System.out.println("Delay Frame:"+mActivityInstance.timesTampNeeded);
 						dos.flush();
 						dos.write(mActivityInstance.mFrames.toByteArray());
 						dos.flush();
-						Thread.sleep(1000/15);
+						Thread.sleep(mActivityInstance.timesTampNeeded);
 					}
 				} catch (Exception e) {
 					e.printStackTrace();

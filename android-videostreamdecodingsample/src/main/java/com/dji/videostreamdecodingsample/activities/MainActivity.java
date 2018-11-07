@@ -77,6 +77,10 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 public class MainActivity extends Activity implements DJICodecManager.YuvDataCallback {
+    //Delay Sending each frame
+    public long incomingTimeMs;
+    public long outputTimeMS;
+    public long timesTampNeeded;
     //Socket connection
     private Socket socket;
     //Data for period times
@@ -646,7 +650,8 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
 
     @Override
     public void onYuvDataReceived(final ByteBuffer yuvFrame, int dataSize, final int width, final int height) {
-        if (count++ % 35 == 0 && yuvFrame != null) {
+        if (count++ % 15 == 0 && yuvFrame != null) {
+            incomingTimeMs=System.currentTimeMillis();
             final byte[] bytes = new byte[dataSize];
             yuvFrame.get(bytes);
             AsyncTask.execute(new Runnable() {
@@ -702,7 +707,7 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
     private void screenShot(byte[] buf, int width, int height) {
         yuvImage = new YuvImage(buf,ImageFormat.NV21,width,height,null);
         baos=new ByteArrayOutputStream();
-        yuvImage.compressToJpeg(new Rect(0,0,width,height),10,baos);
+        yuvImage.compressToJpeg(new Rect(0,0,width,height),25,baos);
         tmp = bytesToMat(baos.toByteArray());
         handler.post(DoImageProcessing);
     }
@@ -713,7 +718,9 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
             //imViewA.setImageBitmap(imageA);
             baos =new ByteArrayOutputStream();
             imageA.compress(Bitmap.CompressFormat.JPEG, 100, baos);
+            outputTimeMS=System.currentTimeMillis();
             mFrames=baos;
+            timesTampNeeded=outputTimeMS-incomingTimeMs;
         }
     };
     private Mat bytesToMat(byte[] data) {
