@@ -650,7 +650,7 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
 
     @Override
     public void onYuvDataReceived(final ByteBuffer yuvFrame, int dataSize, final int width, final int height) {
-        if (count++ % 15 == 0 && yuvFrame != null) {
+        if (count++ % 30 == 0 && yuvFrame != null) {
             incomingTimeMs=System.currentTimeMillis();
             final byte[] bytes = new byte[dataSize];
             yuvFrame.get(bytes);

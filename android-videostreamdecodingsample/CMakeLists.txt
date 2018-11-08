@@ -1,4 +1,4 @@
-set(pathToProject C:/Users/homer/Desktop/UAVsApp/UAVsApp/android-videostreamdecodingsample)
+set(pathToProject C:/Users/homer/Desktop/UAVsApp/Test/DJI-UAV/android-videostreamdecodingsample)
 set(pathToOpenCv C:/OpenCV-android-sdk)
 # Sets the minimum version of CMake required to build your native library.
 # This ensures that a certain set of CMake features is available to
