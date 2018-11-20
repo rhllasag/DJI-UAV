@@ -26,6 +26,7 @@ import android.widget.Toast;
 
 import com.dji.videostreamdecodingsample.R;
 import com.dji.videostreamdecodingsample.main.DJIApplication;
+import com.dji.videostreamdecodingsample.services.Cache;
 import com.dji.videostreamdecodingsample.utils.ModuleVerificationUtil;
 
 import org.opencv.android.OpenCVLoader;
@@ -237,6 +238,7 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
     }
     @Override
     public void onResume() {
+        DJIApplication.getInstance().clearApplicationData();
         Log.e(TAG, "onResume");
         super.onResume();
         updateTitleBar();

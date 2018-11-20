@@ -1,6 +1,7 @@
 package com.dji.videostreamdecodingsample.activities;
 
 import android.app.Activity;
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
@@ -21,12 +22,14 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.dji.videostreamdecodingsample.R;
+import com.dji.videostreamdecodingsample.main.Constants;
 import com.dji.videostreamdecodingsample.main.DJIApplication;
 import com.dji.videostreamdecodingsample.media.DJIVideoStreamDecoder;
 
 import com.dji.videostreamdecodingsample.media.NativeHelper;
 import com.dji.videostreamdecodingsample.models.PeriodicalStateData;
 import com.dji.videostreamdecodingsample.services.Assetbridge;
+import com.dji.videostreamdecodingsample.services.Cache;
 import com.dji.videostreamdecodingsample.services.Server;
 import com.dji.videostreamdecodingsample.utils.ModuleVerificationUtil;
 
@@ -73,6 +76,7 @@ import dji.sdk.codec.DJICodecManager;
 import io.socket.client.Socket;
 import io.socket.emitter.Emitter;
 
+import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.List;
 
@@ -188,6 +192,12 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
             simulator.setStateCallback(null);
         }
         super.onDestroy();
+        try {
+            trimCache(this);
+        } catch (Exception e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
     }
     private void initAllKeys() {
         isSimulatorActived = FlightControllerKey.create(FlightControllerKey.IS_SIMULATOR_ACTIVE);
@@ -650,7 +660,7 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
 
     @Override
     public void onYuvDataReceived(final ByteBuffer yuvFrame, int dataSize, final int width, final int height) {
-        if (count++ % 30 == 0 && yuvFrame != null) {
+        if (count++ % Constants.fps == 0 && yuvFrame != null) {
             incomingTimeMs=System.currentTimeMillis();
             final byte[] bytes = new byte[dataSize];
             yuvFrame.get(bytes);
@@ -707,7 +717,7 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
     private void screenShot(byte[] buf, int width, int height) {
         yuvImage = new YuvImage(buf,ImageFormat.NV21,width,height,null);
         baos=new ByteArrayOutputStream();
-        yuvImage.compressToJpeg(new Rect(0,0,width,height),25,baos);
+        yuvImage.compressToJpeg(new Rect(0,0,width,height), Constants.qualityPercent,baos);
         tmp = bytesToMat(baos.toByteArray());
         handler.post(DoImageProcessing);
     }
@@ -808,5 +818,29 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         int minutes = sec / 60;
         return String.format("%02d:%02d", minutes, seconds);
     }
+    public void trimCache(Context context) {
+        try {
+            File dir = context.getCacheDir();
+            if (dir != null && dir.isDirectory()) {
+                deleteDir(dir);
+            }
+        } catch (Exception e) {
+            // TODO: handle exception
+        }
+    }
 
+    public static boolean deleteDir(File dir) {
+        if (dir != null && dir.isDirectory()) {
+            String[] children = dir.list();
+            for (int i = 0; i < children.length; i++) {
+                boolean success = deleteDir(new File(dir, children[i]));
+                if (!success) {
+                    return false;
+                }
+            }
+        }
+
+        // The directory is now empty so delete it
+        return dir.delete();
+    }
 }

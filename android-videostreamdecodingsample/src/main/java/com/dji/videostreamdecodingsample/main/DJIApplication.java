@@ -5,6 +5,7 @@ import android.content.Context;
 
 import com.secneo.sdk.Helper;
 
+import java.io.File;
 import java.net.URISyntaxException;
 
 import dji.sdk.base.BaseProduct;
@@ -16,6 +17,7 @@ import io.socket.client.Socket;
 
 public class DJIApplication extends Application {
     // Web Sockets IO//
+    private static DJIApplication instance;
     private Socket mSocket;
     {
         try {
@@ -23,6 +25,40 @@ public class DJIApplication extends Application {
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
+    }
+    @Override
+    public void onCreate() {
+        super.onCreate();
+        instance =this;
+    }
+    public static  DJIApplication getInstance(){
+        return instance;
+    }
+    public void clearApplicationData() {
+        File cache = getCacheDir();
+        File appDir = new File(cache.getParent());
+        if(appDir.exists()){
+            String[] children = appDir.list();
+            for(String s : children){
+                if(!s.equals("lib")){
+                    deleteDir(new File(appDir, s));
+                }
+            }
+        }
+    }
+
+    public static boolean deleteDir(File dir) {
+        if (dir != null && dir.isDirectory()) {
+            String[] children = dir.list();
+            for (int i = 0; i < children.length; i++) {
+                boolean success = deleteDir(new File(dir, children[i]));
+                if (!success) {
+                    return false;
+                }
+            }
+        }
+
+        return dir.delete();
     }
     public static boolean isAircraftConnected() {
         return getProductInstance() != null && getProductInstance() instanceof Aircraft;
