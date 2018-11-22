@@ -208,6 +208,9 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         DJIApplication app = (DJIApplication) getApplication();
         socket = app.getSocket();
         socket.on("joystickPossitionChanged",joystickPossitionChanged);
+        socket.on("takeOffChanged",takeOffChanged);
+        socket.on("landingChanged",landingChanged);
+        socket.on("returnToHomeChanged",returnToHomeChanged);
         socket.connect();
         periodicalStateData = new PeriodicalStateData();
         periodicalStateData.setFirstReading(true);
@@ -241,8 +244,7 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         }
         if (ModuleVerificationUtil.isFlightControllerAvailable()) {
             flightController =((Aircraft) DJIApplication.getProductInstance()).getFlightController();
-            simulator=flightController.getSimulator();
-            simulator.setStateCallback(new SimulatorState.Callback() {
+/*            simulator.setStateCallback(new SimulatorState.Callback() {
                 @Override
                 public void onUpdate(@NonNull SimulatorState simulatorState) {
                     if(simulatorState.areMotorsOn())
@@ -250,8 +252,7 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
                     else
                         System.out.println("Motors Off");
                 }
-            });
-
+            });*/
             if(flightController.isFlightAssistantSupported()){
             intelligentFlightAssistant=flightController.getFlightAssistant();
             if (intelligentFlightAssistant != null) {
@@ -405,7 +406,7 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         super.onCreate(savedInstanceState);
     }
 
-
+    /*Screen Events to control the aircraft*/
     public Emitter.Listener joystickPossitionChanged = new Emitter.Listener() {
         @Override
         public void call(final Object... args) {
@@ -418,6 +419,108 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
 
         }
     };
+    public Emitter.Listener returnToHomeChanged = new Emitter.Listener() {
+        @Override
+        public void call(final Object... args) {
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (ModuleVerificationUtil.isFlightControllerAvailable()) {
+                        flightController =((Aircraft) DJIApplication.getProductInstance()).getFlightController();
+                        flightController.startGoHome(new CommonCallbacks.CompletionCallback() {
+                            @Override
+                            public void onResult(DJIError djiError) {
+                                if(djiError!=null){
+                                    sendError(djiError.getDescription());
+                                    myAwesomeTextView.setText(djiError.getDescription());
+                                }
+                            }
+                        });
+                    }
+                    else {
+                        myAwesomeTextView.setText("FlightController not available Landing Go Home");
+                    }
+                }
+            });
+
+        }
+    };
+    public Emitter.Listener landingChanged = new Emitter.Listener() {
+        @Override
+        public void call(final Object... args) {
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (ModuleVerificationUtil.isFlightControllerAvailable()) {
+                        flightController =((Aircraft) DJIApplication.getProductInstance()).getFlightController();
+                        if(flightController.getState().isFlying()){
+                            flightController.startLanding(new CommonCallbacks.CompletionCallback() {
+                                @Override
+                                public void onResult(DJIError djiError) {
+                                    if(djiError!=null){
+                                        myAwesomeTextView.setText(djiError.getDescription());
+                                        sendError(djiError.getDescription());
+                                    }
+                                }
+                            });
+                        }
+                    }
+                    else {
+                        myAwesomeTextView.setText("FlightController not available Landing");
+                    }
+
+                }
+            });
+
+        }
+    };
+    public Emitter.Listener takeOffChanged = new Emitter.Listener() {
+        @Override
+        public void call(final Object... args) {
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (ModuleVerificationUtil.isFlightControllerAvailable()) {
+                        flightController =((Aircraft) DJIApplication.getProductInstance()).getFlightController();
+                        if(!flightController.getState().isFlying()){
+                            flightController.startTakeoff(new CommonCallbacks.CompletionCallback() {
+                                @Override
+                                public void onResult(DJIError djiError) {
+                                    if(djiError!=null){
+                                        myAwesomeTextView.setText(djiError.getDescription());
+                                        sendError(djiError.getDescription());
+                                    }
+                                }
+                            });
+                        }
+                        else{
+                            myAwesomeTextView.setText(" TakeOff, but is flying");
+                        }
+                    }
+                    else {
+                        myAwesomeTextView.setText("FlightController not available TakeOff");
+                    }
+
+
+                }
+            });
+
+        }
+    };
+    /*Ent screen events*/
+    /*Sending Logs Success and Error*/
+    private void sendError(String message){
+        JSONObject jsonError = new JSONObject();
+        try {
+            jsonError.put("error", message);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        socket.emit("newError", jsonError);
+    }
+    /*End Logs*/
+
+
     private void showToast(String s) {
         Toast.makeText(getApplicationContext(), s, Toast.LENGTH_SHORT).show();
     }
@@ -762,12 +865,39 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         if (simulate.isSelected()) {
             simulate.setText("Flight");
             simulate.setSelected(false);
+
             simulator.start(InitializationData.createInstance(new LocationCoordinate2D(23, 113), 10, 10),
                     new CommonCallbacks.CompletionCallback() {
                         @Override
                         public void onResult(DJIError djiError) {
+                            JSONObject jsonError = new JSONObject();
+                            try {
+                                jsonError.put("error", djiError.getDescription());
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                            socket.emit("newError", jsonError);
                         }
                     });
+            Boolean isSimulatorOn = (Boolean) KeyManager.getInstance().getValue(isSimulatorActived);
+            if (isSimulatorOn != null) {
+                JSONObject jsonSuccess = new JSONObject();
+                try {
+                    jsonSuccess.put("information", "Simulator is On.");
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+                socket.emit("newInformation", jsonSuccess);
+            }
+            else {
+                JSONObject jsonError = new JSONObject();
+                try {
+                    jsonError.put("error", "Simulator is Off.");
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+                socket.emit("newError", jsonError);
+            }
         } else {
             simulate.setText("Simulate");
             simulate.setSelected(true);
