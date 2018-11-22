@@ -319,14 +319,13 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
                     if(periodicalStateData.getFlightTime()!=flightControllerState.getFlightTimeInSeconds()){
                         JSONObject flightTime = new JSONObject();
                         try {
-                            flightTime.put("flightTime", secToTime(flightControllerState.getGoHomeAssessment().getBatteryPercentageNeededToGoHome()));
-
+                            flightTime.put("flightTime", secToTime(flightControllerState.getFlightTimeInSeconds()));
+                            System.out.println();
                         } catch (JSONException e) {
                             e.printStackTrace();
                         }
                         socket.emit("newFlightTime", flightTime);
                     }
-                    periodicalStateData.setFlightTime(flightControllerState.getFlightTimeInSeconds());
                 }
             });
         }
