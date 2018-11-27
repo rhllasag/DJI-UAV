@@ -78,6 +78,8 @@ import io.socket.emitter.Emitter;
 
 import java.io.File;
 import java.nio.ByteBuffer;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.util.List;
 
 public class MainActivity extends Activity implements DJICodecManager.YuvDataCallback {
@@ -128,6 +130,13 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
     ByteArrayOutputStream baos =new ByteArrayOutputStream();
     private Bitmap imageA;
     ImageView imViewA;
+    //------------ FORMAT COORDINATES
+    DecimalFormatSymbols separator = new DecimalFormatSymbols();
+    DecimalFormat formatLongitude;
+    DecimalFormat formatLatitude;
+    DecimalFormat formatHight;
+    DecimalFormat formatDistance;
+    //------------ END FORMAT
     public ByteArrayOutputStream mFrames;
     static {
         System.loadLibrary("native-lib");
@@ -139,6 +148,12 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         super.onResume();
         initSurfaceOrTextureView();
         notifyStatusChange();
+        separator.setDecimalSeparator('.');
+        formatHight = new DecimalFormat("00.0", separator);
+        formatDistance = new DecimalFormat("00.00", separator);
+        formatLatitude = new DecimalFormat("00.0000", separator);
+        formatLongitude = new DecimalFormat("00.0000", separator);
+
     }
 
     private void initSurfaceOrTextureView(){
@@ -325,6 +340,36 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
                             e.printStackTrace();
                         }
                         socket.emit("newFlightTime", flightTime);
+                    }
+                    if(flightControllerState.isFlying()){
+                        JSONObject homeLocation = new JSONObject();
+                        try {
+                            homeLocation.put("latitude",formatLatitude.format(flightControllerState.getHomeLocation().getLatitude()));
+                            homeLocation.put("longitude",formatLongitude.format(flightControllerState.getHomeLocation().getLongitude()));
+                            System.out.println();
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                        socket.emit("newHomeLocation", homeLocation);
+                    }
+                    if(flightControllerState.isFlying()){
+                        JSONObject coordinates = new JSONObject();
+                        try {
+                            coordinates.put("latitude",formatLatitude.format(flightControllerState.getAircraftLocation().getLatitude()));
+                            coordinates.put("longitude",formatLongitude.format(flightControllerState.getAircraftLocation().getLongitude()));
+                            coordinates.put("hight", formatHight.format(flightControllerState.getAircraftLocation().getAltitude()));
+                            coordinates.put("distance",
+                                    formatDistance.format(periodicalStateData.distanciaCoord(
+                                            flightControllerState.getAircraftLocation().getLatitude(),
+                                            flightControllerState.getAircraftLocation().getLongitude(),
+                                            flightControllerState.getHomeLocation().getLatitude(),
+                                            flightControllerState.getHomeLocation().getLongitude())
+                                    ));
+                            System.out.println();
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                        socket.emit("newCoordinates", coordinates);
                     }
                 }
             });
