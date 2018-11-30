@@ -153,9 +153,7 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         formatDistance = new DecimalFormat("00.00", separator);
         formatLatitude = new DecimalFormat("00.0000", separator);
         formatLongitude = new DecimalFormat("00.0000", separator);
-
     }
-
     private void initSurfaceOrTextureView(){
         switch (demoType) {
             case USE_SURFACE_VIEW:
@@ -226,6 +224,7 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         socket.on("takeOffChanged",takeOffChanged);
         socket.on("landingChanged",landingChanged);
         socket.on("returnToHomeChanged",returnToHomeChanged);
+        socket.on("homeChanged",homeChanged);
         socket.connect();
         periodicalStateData = new PeriodicalStateData();
         periodicalStateData.setFirstReading(true);
@@ -341,18 +340,9 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
                         }
                         socket.emit("newFlightTime", flightTime);
                     }
-                    if(flightControllerState.isFlying()){
-                        JSONObject homeLocation = new JSONObject();
-                        try {
-                            homeLocation.put("latitude",formatLatitude.format(flightControllerState.getHomeLocation().getLatitude()));
-                            homeLocation.put("longitude",formatLongitude.format(flightControllerState.getHomeLocation().getLongitude()));
-                            System.out.println();
-                        } catch (JSONException e) {
-                            e.printStackTrace();
-                        }
-                        socket.emit("newHomeLocation", homeLocation);
-                    }
-                    if(flightControllerState.isFlying()){
+                    periodicalStateData.setHomeLatitude(flightControllerState.getAircraftLocation().getLatitude());
+                    periodicalStateData.setHomeLongitude(flightControllerState.getAircraftLocation().getLongitude());
+                    if(flightControllerState.isFlying()&&periodicalStateData.isSameAircraftLocation(flightControllerState.getAircraftLocation().getLatitude(),flightControllerState.getAircraftLocation().getLongitude())){
                         JSONObject coordinates = new JSONObject();
                         try {
                             coordinates.put("latitude",formatLatitude.format(flightControllerState.getAircraftLocation().getLatitude()));
@@ -369,8 +359,11 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
                         } catch (JSONException e) {
                             e.printStackTrace();
                         }
+                        periodicalStateData.setAircraftLatitude((flightControllerState.getAircraftLocation().getLatitude()));
+                        periodicalStateData.setAircraftLongitude((flightControllerState.getAircraftLocation().getLongitude()));
                         socket.emit("newCoordinates", coordinates);
                     }
+
                 }
             });
         }
@@ -489,6 +482,41 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
 
         }
     };
+    public Emitter.Listener homeChanged = new Emitter.Listener() {
+        @Override
+        public void call(final Object... args) {
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (ModuleVerificationUtil.isFlightControllerAvailable()) {
+                        flightController =((Aircraft) DJIApplication.getProductInstance()).getFlightController();
+                        if(flightController.getState().isFlying()){
+                            flightController.setHomeLocation(new LocationCoordinate2D(periodicalStateData.getAircraftLatitude(), periodicalStateData.getAircraftLongitude()), new CommonCallbacks.CompletionCallback() {
+                                @Override
+                                public void onResult(DJIError djiError) {
+                                    if(djiError!=null)
+                                    sendError(djiError.getDescription());
+                                }
+                            });
+                            JSONObject homeLocation = new JSONObject();
+                            try {
+                                homeLocation.put("latitude",formatLatitude.format(periodicalStateData.getAircraftLatitude()));
+                                homeLocation.put("longitude",formatLongitude.format(periodicalStateData.getAircraftLongitude()));
+                                System.out.println();
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                            socket.emit("newHomeLocation", homeLocation);
+                        }
+                    }
+                    else {
+                        myAwesomeTextView.setText("FlightController not available Landing Go Home");
+                    }
+                }
+            });
+
+        }
+    };
     public Emitter.Listener landingChanged = new Emitter.Listener() {
         @Override
         public void call(final Object... args) {
@@ -536,10 +564,12 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
                                     }
                                 }
                             });
+
                         }
                         else{
                             myAwesomeTextView.setText(" TakeOff, but is flying");
                         }
+
                     }
                     else {
                         myAwesomeTextView.setText("FlightController not available TakeOff");

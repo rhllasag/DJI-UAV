@@ -1,4 +1,7 @@
 package com.dji.videostreamdecodingsample.models;
+
+import dji.common.model.LocationCoordinate2D;
+
 public class PeriodicalStateData {
     private int AircraftBattery=-1;
     private int RemoteControllerBattery=-1;
@@ -8,6 +11,52 @@ public class PeriodicalStateData {
     private int flightTime=-1;
     private boolean sensorBeingUsedFlightAssistant=false;
     private boolean firstReading=false;
+    private double homeLatitude;
+    private double homeLongitude;
+    private double aircraftLatitude;
+    private double aircraftLongitude;
+
+    public double getAircraftLatitude() {
+        return aircraftLatitude;
+    }
+
+    public void setAircraftLatitude(double aircraftLatitude) {
+        this.aircraftLatitude = aircraftLatitude;
+    }
+
+    public double getAircraftLongitude() {
+        return aircraftLongitude;
+    }
+
+    public void setAircraftLongitude(double aircraftLongitude) {
+        this.aircraftLongitude = aircraftLongitude;
+    }
+
+    public double getHomeLatitude() {
+        return homeLatitude;
+    }
+
+    public void setHomeLatitude(double homeLatitude) {
+        this.homeLatitude = homeLatitude;
+    }
+
+    public double getHomeLongitude() {
+        return homeLongitude;
+    }
+
+    public void setHomeLongitude(double homeLongitude) {
+        this.homeLongitude = homeLongitude;
+    }
+    public boolean isSameHomeLocation(double currentLatitude, double currentLongitude){
+        if(currentLatitude==homeLatitude&&currentLongitude==homeLongitude)
+        return true;
+        return false;
+    }
+    public boolean isSameAircraftLocation(double currentLatitude, double currentLongitude){
+         if(distanciaCoord(currentLatitude,currentLongitude,aircraftLatitude,aircraftLongitude)>0.005)
+            return true;
+        return false;
+    }
     public double distanciaCoord(double lat1, double lng1, double lat2, double lng2) {
         //double radioTierra = 3958.75;//en millas
         double radioTierra = 6371;//en kilómetros
