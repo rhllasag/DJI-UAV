@@ -83,66 +83,65 @@ import java.text.DecimalFormatSymbols;
 import java.util.List;
 
 public class MainActivity extends Activity implements DJICodecManager.YuvDataCallback {
-    //Delay Sending each frame
+    /**Delay Sending each frame **/
     public long incomingTimeMs;
     public long outputTimeMS;
     public long timesTampNeeded;
-    //Socket connection
+    /**Socket connection**/
     private Socket socket;
-    //Data for period times
+    /**Data for period times**/
     Handler handlerPeriodTimeData = new Handler();
     int delay = 15*1000; //1 second=1000 miliseconds, 15*1000=15seconds
     Runnable  runnable;
-    //Connection Callback
+    /**Connection Callback**/
     private RemoteController remoteController;
     private FlightController flightController;
     private FlightAssistant intelligentFlightAssistant;
     private FlightControllerKey isSimulatorActived;
-    private Simulator simulator;
-    private MobileRemoteController mobileRemoteController;
     private BaseProduct baseProduct;
     private PeriodicalStateData periodicalStateData;
-    //Image and Video
-    private Activity activity=this;
-    private static final String TAG = MainActivity.class.getSimpleName();
-    private SurfaceHolder.Callback surfaceCallback;
-    private Handler handler = new Handler();
-    private boolean bProcessing =false;
-    private Mat tmp;
-    private YuvImage yuvImage;
-    private enum DemoType { USE_TEXTURE_VIEW, USE_SURFACE_VIEW, USE_SURFACE_VIEW_DEMO_DECODER}
-    private static DemoType demoType = DemoType.USE_TEXTURE_VIEW;
+    private ImageView imViewA;
+    /**Views for interface**/
     public TextView infoip, msg;
     public TextView myAwesomeTextView;
-    protected VideoFeeder.VideoDataCallback mReceivedVideoDataCallBack = null;
     private TextView titleTv;
     private TextureView videostreamPreviewTtView;
     private SurfaceView videostreamPreviewSf;
     private SurfaceHolder videostreamPreviewSh;
-    private Camera mCamera;
-    private DJICodecManager mCodecManager;
     private Button screenShot;
     private Button simulate;
     private StringBuilder stringBuilder;
+    /**Image and Video**/
+    private Activity activity=this;
+    private static final String TAG = MainActivity.class.getSimpleName();
+    private SurfaceHolder.Callback surfaceCallback;
+    private Handler handler = new Handler();
+    private Mat tmp;
+    private YuvImage yuvImage;
+    private enum DemoType { USE_TEXTURE_VIEW, USE_SURFACE_VIEW, USE_SURFACE_VIEW_DEMO_DECODER}
+    private static DemoType demoType = DemoType.USE_TEXTURE_VIEW;
+    protected VideoFeeder.VideoDataCallback mReceivedVideoDataCallBack = null;
+    private Camera mCamera;
+    private DJICodecManager mCodecManager;
     private int videoViewWidth;
     private int videoViewHeight;
     public int count;
-    ByteArrayOutputStream baos =new ByteArrayOutputStream();
+    private ByteArrayOutputStream baos =new ByteArrayOutputStream();
     private Bitmap imageA;
-    ImageView imViewA;
-    //------------ FORMAT COORDINATES
+    public ByteArrayOutputStream mFrames;
+    /**FORMAT COORDINATES AND DISTANCE**/
     DecimalFormatSymbols separator = new DecimalFormatSymbols();
     DecimalFormat formatLongitude;
     DecimalFormat formatLatitude;
     DecimalFormat formatHight;
     DecimalFormat formatDistance;
-    //------------ END FORMAT
-    public ByteArrayOutputStream mFrames;
+    /**Computer OpenCV Methods**/
     static {
         System.loadLibrary("native-lib");
     }
     private native void computerVision(Bitmap pTarget, byte[] pSource);
     private  native void humanDetection(long addrRgba);
+
     @Override
     protected void onResume() {
         super.onResume();
@@ -151,69 +150,8 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         separator.setDecimalSeparator('.');
         formatHight = new DecimalFormat("00.0", separator);
         formatDistance = new DecimalFormat("00.00", separator);
-        formatLatitude = new DecimalFormat("00.0000", separator);
-        formatLongitude = new DecimalFormat("00.0000", separator);
-    }
-    private void initSurfaceOrTextureView(){
-        switch (demoType) {
-            case USE_SURFACE_VIEW:
-            case USE_SURFACE_VIEW_DEMO_DECODER:
-                initPreviewerSurfaceView();
-                break;
-            default:
-                initPreviewerTextureView();
-                break;
-        }
-    }
-
-    @Override
-    protected void onPause() {
-        if (mCamera != null) {
-            if (VideoFeeder.getInstance().getPrimaryVideoFeed() != null) {
-                VideoFeeder.getInstance().getPrimaryVideoFeed().setCallback(null);
-            }
-        }
-        super.onPause();
-    }
-
-    @Override
-    protected void onDestroy() {
-
-        handlerPeriodTimeData.removeCallbacks(runnable);
-        if (mCodecManager != null) {
-            mCodecManager.cleanSurface();
-            mCodecManager.destroyCodec();
-        }
-        socket.disconnect();
-        socket.off("joystickPossitionChanged", joystickPossitionChanged);
-        if (mCodecManager != null) {
-            mCodecManager.cleanSurface();
-            mCodecManager.destroyCodec();
-        }
-        if (remoteController!=null) {
-            remoteController.setChargeRemainingCallback(null);
-            remoteController.setGPSDataCallback(null);
-        }
-        if (flightController!=null) {
-
-        }
-        if(baseProduct!=null){
-            baseProduct.getBattery().setStateCallback(null);
-        }
-        Simulator simulator = ModuleVerificationUtil.getSimulator();
-        if (simulator != null) {
-            simulator.setStateCallback(null);
-        }
-        super.onDestroy();
-        try {
-            trimCache(this);
-        } catch (Exception e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
-    }
-    private void initAllKeys() {
-        isSimulatorActived = FlightControllerKey.create(FlightControllerKey.IS_SIMULATOR_ACTIVE);
+        formatLatitude = new DecimalFormat("00.00000", separator);
+        formatLongitude = new DecimalFormat("00.00000", separator);
     }
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -268,12 +206,12 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
                 }
             });*/
             if(flightController.isFlightAssistantSupported()){
-            intelligentFlightAssistant=flightController.getFlightAssistant();
-            if (intelligentFlightAssistant != null) {
+                intelligentFlightAssistant=flightController.getFlightAssistant();
+                if (intelligentFlightAssistant != null) {
 
-                intelligentFlightAssistant.setVisionDetectionStateUpdatedCallback(new VisionDetectionState.Callback() {
-                    @Override
-                    public void onUpdate(@NonNull VisionDetectionState visionDetectionState) {
+                    intelligentFlightAssistant.setVisionDetectionStateUpdatedCallback(new VisionDetectionState.Callback() {
+                        @Override
+                        public void onUpdate(@NonNull VisionDetectionState visionDetectionState) {
                             //Sensors
                             if(periodicalStateData.isSensorBeingUsedFlightAssistant()!=visionDetectionState.isSensorBeingUsed()) {
                                 System.out.println("Flight Controller sensors:" + visionDetectionState.isSensorBeingUsed());
@@ -286,20 +224,20 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
                                 }
                                 socket.emit("newFlightAssistantState", jsonSensorBeingUsed);
                             }
-                        periodicalStateData.setSensorBeingUsedFlightAssistant(visionDetectionState.isSensorBeingUsed());
-                        //Obstacules
-                        visionDetectionState.getObstacleDistanceInMeters();
-                    }
-                });
-                intelligentFlightAssistant.setVisionControlStateUpdatedcallback(new VisionControlState.Callback() {
-                    @Override
-                    public void onUpdate(VisionControlState visionControlState) {
-                    }
-                });
+                            periodicalStateData.setSensorBeingUsedFlightAssistant(visionDetectionState.isSensorBeingUsed());
+                            //Obstacules
+                            visionDetectionState.getObstacleDistanceInMeters();
+                        }
+                    });
+                    intelligentFlightAssistant.setVisionControlStateUpdatedcallback(new VisionControlState.Callback() {
+                        @Override
+                        public void onUpdate(VisionControlState visionControlState) {
+                        }
+                    });
+                }
+            } else {
+                System.out.println("onAttachedToWindow FC NOT Available");
             }
-        } else {
-            System.out.println("onAttachedToWindow FC NOT Available");
-        }
             flightController.setStateCallback(new FlightControllerState.Callback() {
                 @Override
                 public void onUpdate(@NonNull FlightControllerState flightControllerState) {
@@ -389,14 +327,14 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
                 @Override
                 public void onUpdate(@NonNull HardwareState hardwareState) {
                     if(periodicalStateData.getRemoteControllerSwitchMode()!=hardwareState.getFlightModeSwitch().value()){
-                    System.out.println("Remote Controller Switch Mode:" +hardwareState.getFlightModeSwitch().value());
-                    JSONObject jsonFlightSwitch = new JSONObject();
-                    try {
-                        jsonFlightSwitch.put("flightMode",hardwareState.getFlightModeSwitch().value());
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    }
-                    socket.emit("newFlightModeSwitch",jsonFlightSwitch);
+                        System.out.println("Remote Controller Switch Mode:" +hardwareState.getFlightModeSwitch().value());
+                        JSONObject jsonFlightSwitch = new JSONObject();
+                        try {
+                            jsonFlightSwitch.put("flightMode",hardwareState.getFlightModeSwitch().value());
+                        } catch (JSONException e) {
+                            e.printStackTrace();
+                        }
+                        socket.emit("newFlightModeSwitch",jsonFlightSwitch);
                     }
                     periodicalStateData.setRemoteControllerSwitchMode(hardwareState.getFlightModeSwitch().value());
                 }
@@ -442,169 +380,17 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         cThread.start();
         super.onCreate(savedInstanceState);
     }
-
-    /*Screen Events to control the aircraft*/
-    public Emitter.Listener joystickPossitionChanged = new Emitter.Listener() {
-        @Override
-        public void call(final Object... args) {
-            activity.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    myAwesomeTextView.setText(args[0].toString());
-                }
-            });
-
-        }
-    };
-    public Emitter.Listener returnToHomeChanged = new Emitter.Listener() {
-        @Override
-        public void call(final Object... args) {
-            activity.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    if (ModuleVerificationUtil.isFlightControllerAvailable()) {
-                        flightController =((Aircraft) DJIApplication.getProductInstance()).getFlightController();
-                        flightController.startGoHome(new CommonCallbacks.CompletionCallback() {
-                            @Override
-                            public void onResult(DJIError djiError) {
-                                if(djiError!=null){
-                                    sendError(djiError.getDescription());
-                                    myAwesomeTextView.setText(djiError.getDescription());
-                                }
-                            }
-                        });
-                    }
-                    else {
-                        myAwesomeTextView.setText("FlightController not available Landing Go Home");
-                    }
-                }
-            });
-
-        }
-    };
-    public Emitter.Listener homeChanged = new Emitter.Listener() {
-        @Override
-        public void call(final Object... args) {
-            activity.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    if (ModuleVerificationUtil.isFlightControllerAvailable()) {
-                        flightController =((Aircraft) DJIApplication.getProductInstance()).getFlightController();
-                        if(flightController.getState().isFlying()){
-                            flightController.setHomeLocation(new LocationCoordinate2D(periodicalStateData.getAircraftLatitude(), periodicalStateData.getAircraftLongitude()), new CommonCallbacks.CompletionCallback() {
-                                @Override
-                                public void onResult(DJIError djiError) {
-                                    if(djiError!=null)
-                                    sendError(djiError.getDescription());
-                                }
-                            });
-                            JSONObject homeLocation = new JSONObject();
-                            try {
-                                homeLocation.put("latitude",formatLatitude.format(periodicalStateData.getAircraftLatitude()));
-                                homeLocation.put("longitude",formatLongitude.format(periodicalStateData.getAircraftLongitude()));
-                                System.out.println();
-                            } catch (JSONException e) {
-                                e.printStackTrace();
-                            }
-                            socket.emit("newHomeLocation", homeLocation);
-                        }
-                    }
-                    else {
-                        myAwesomeTextView.setText("FlightController not available Landing Go Home");
-                    }
-                }
-            });
-
-        }
-    };
-    public Emitter.Listener landingChanged = new Emitter.Listener() {
-        @Override
-        public void call(final Object... args) {
-            activity.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    if (ModuleVerificationUtil.isFlightControllerAvailable()) {
-                        flightController =((Aircraft) DJIApplication.getProductInstance()).getFlightController();
-                        if(flightController.getState().isFlying()){
-                            flightController.startLanding(new CommonCallbacks.CompletionCallback() {
-                                @Override
-                                public void onResult(DJIError djiError) {
-                                    if(djiError!=null){
-                                        myAwesomeTextView.setText(djiError.getDescription());
-                                        sendError(djiError.getDescription());
-                                    }
-                                }
-                            });
-                        }
-                    }
-                    else {
-                        myAwesomeTextView.setText("FlightController not available Landing");
-                    }
-
-                }
-            });
-
-        }
-    };
-    public Emitter.Listener takeOffChanged = new Emitter.Listener() {
-        @Override
-        public void call(final Object... args) {
-            activity.runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    if (ModuleVerificationUtil.isFlightControllerAvailable()) {
-                        flightController =((Aircraft) DJIApplication.getProductInstance()).getFlightController();
-                        if(!flightController.getState().isFlying()){
-                            flightController.startTakeoff(new CommonCallbacks.CompletionCallback() {
-                                @Override
-                                public void onResult(DJIError djiError) {
-                                    if(djiError!=null){
-                                        myAwesomeTextView.setText(djiError.getDescription());
-                                        sendError(djiError.getDescription());
-                                    }
-                                }
-                            });
-
-                        }
-                        else{
-                            myAwesomeTextView.setText(" TakeOff, but is flying");
-                        }
-
-                    }
-                    else {
-                        myAwesomeTextView.setText("FlightController not available TakeOff");
-                    }
-
-
-                }
-            });
-
-        }
-    };
-    /*Ent screen events*/
-    /*Sending Logs Success and Error*/
-    private void sendError(String message){
-        JSONObject jsonError = new JSONObject();
-        try {
-            jsonError.put("error", message);
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-        socket.emit("newError", jsonError);
-    }
-    /*End Logs*/
-
-
-    private void showToast(String s) {
-        Toast.makeText(getApplicationContext(), s, Toast.LENGTH_SHORT).show();
-    }
-
-    private void updateTitle(String s) {
-        if (titleTv != null) {
-            titleTv.setText(s);
+    private void initSurfaceOrTextureView(){
+        switch (demoType) {
+            case USE_SURFACE_VIEW:
+            case USE_SURFACE_VIEW_DEMO_DECODER:
+                initPreviewerSurfaceView();
+                break;
+            default:
+                initPreviewerTextureView();
+                break;
         }
     }
-
     private void initUi() {
         screenShot = (Button) findViewById(R.id.activity_main_screen_shot);
         screenShot.setSelected(false);
@@ -619,7 +405,133 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         myAwesomeTextView= (TextView)findViewById(R.id.event);
         updateUIVisibility();
     }
+    /**
+     * Init a fake texture view to for the codec manager, so that the video raw data can be received
+     * by the camera
+     */
+    private void initPreviewerTextureView() {
+        videostreamPreviewTtView.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
+            @Override
+            public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
+                Log.d(TAG, "real onSurfaceTextureAvailable");
+                videoViewWidth = width;
+                videoViewHeight = height;
+                System.out.println("real onSurfaceTextureAvailable: width " + videoViewWidth + " height " + videoViewHeight);
+                if (mCodecManager == null) {
+                    mCodecManager = new DJICodecManager(getApplicationContext(), surface, width, height);
+                }
+                //imageA = Bitmap.createBitmap(1280, 720, Bitmap.Config.ARGB_8888);
 
+            }
+
+            @Override
+            public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
+                videoViewWidth = width;
+                videoViewHeight = height;
+                Log.d(TAG, "real onSurfaceTextureAvailable2: width " + videoViewWidth + " height " + videoViewHeight);
+            }
+
+            @Override
+            public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
+                if (mCodecManager != null) {
+                    mCodecManager.cleanSurface();
+                }
+                if(imageA!=null)
+                    imageA.recycle();
+                imageA = null;
+                return false;
+            }
+
+            @Override
+            public void onSurfaceTextureUpdated(SurfaceTexture surface) {
+
+            }
+        });
+    }
+
+    /**
+     * Init a surface view for the DJIVideoStreamDecoder
+     */
+    private void initPreviewerSurfaceView() {
+        videostreamPreviewSh = videostreamPreviewSf.getHolder();
+        surfaceCallback = new SurfaceHolder.Callback() {
+            @Override
+            public void surfaceCreated(SurfaceHolder holder) {
+                Log.d("SURFACE", "real onSurfaceTextureAvailable");
+                videoViewWidth = videostreamPreviewSf.getWidth();
+                videoViewHeight = videostreamPreviewSf.getHeight();
+                Log.d(TAG, "real onSurfaceTextureAvailable3: width " + videoViewWidth + " height " + videoViewHeight);
+                switch (demoType) {
+                    case USE_SURFACE_VIEW:
+                        if (mCodecManager == null) {
+
+                            mCodecManager = new DJICodecManager(getApplicationContext(), holder, videoViewWidth,
+                                    videoViewHeight);
+                        }
+                        break;
+                    case USE_SURFACE_VIEW_DEMO_DECODER:
+                        // This demo might not work well on P3C and OSMO.
+                        NativeHelper.getInstance().init();
+                        DJIVideoStreamDecoder.getInstance().init(getApplicationContext(), holder.getSurface());
+                        DJIVideoStreamDecoder.getInstance().setYuvDataListener(MainActivity.this);
+                        DJIVideoStreamDecoder.getInstance().resume();
+                        break;
+                }
+
+            }
+
+            @Override
+            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+                videoViewWidth = width;
+                videoViewHeight = height;
+                Log.d(TAG, "real onSurfaceTextureAvailable4: width " + videoViewWidth + " height " + videoViewHeight);
+                switch (demoType) {
+                    case USE_SURFACE_VIEW:
+                        //mCodecManager.onSurfaceSizeChanged(videoViewWidth, videoViewHeight, 0);
+                        break;
+                    case USE_SURFACE_VIEW_DEMO_DECODER:
+                        DJIVideoStreamDecoder.getInstance().changeSurface(holder.getSurface());
+                        break;
+                }
+
+            }
+
+            @Override
+            public void surfaceDestroyed(SurfaceHolder holder) {
+                switch (demoType) {
+                    case USE_SURFACE_VIEW:
+                        if (mCodecManager != null) {
+                            mCodecManager.cleanSurface();
+                            mCodecManager.destroyCodec();
+                            mCodecManager = null;
+                        }
+                        break;
+                    case USE_SURFACE_VIEW_DEMO_DECODER:
+                        DJIVideoStreamDecoder.getInstance().stop();
+                        NativeHelper.getInstance().release();
+                        break;
+                }
+
+            }
+        };
+
+        videostreamPreviewSh.addCallback(surfaceCallback);
+    }
+    @Override
+    protected void onPause() {
+        if (mCamera != null) {
+            if (VideoFeeder.getInstance().getPrimaryVideoFeed() != null) {
+                VideoFeeder.getInstance().getPrimaryVideoFeed().setCallback(null);
+            }
+        }
+        super.onPause();
+    }
+    private void updateTitle(String s) {
+        if (titleTv != null) {
+            titleTv.setText(s);
+        }
+    }
+    /**---Updating Data--------------**/
     private void updateUIVisibility(){
         switch (demoType) {
             case USE_SURFACE_VIEW:
@@ -634,7 +546,6 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
                 break;
         }
     }
-
     private void notifyStatusChange() {
 
         final BaseProduct product = DJIApplication.getProductInstance();
@@ -694,7 +605,58 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
             }
         }
     }
+    @Override
+    protected void onDestroy() {
 
+        handlerPeriodTimeData.removeCallbacks(runnable);
+        if (mCodecManager != null) {
+            mCodecManager.cleanSurface();
+            mCodecManager.destroyCodec();
+        }
+        socket.disconnect();
+        socket.off("joystickPossitionChanged", joystickPossitionChanged);
+        if (mCodecManager != null) {
+            mCodecManager.cleanSurface();
+            mCodecManager.destroyCodec();
+        }
+        if (remoteController!=null) {
+            remoteController.setChargeRemainingCallback(null);
+            remoteController.setGPSDataCallback(null);
+        }
+        if (flightController!=null) {
+
+        }
+        if(baseProduct!=null){
+            baseProduct.getBattery().setStateCallback(null);
+        }
+        Simulator simulator = ModuleVerificationUtil.getSimulator();
+        if (simulator != null) {
+            simulator.setStateCallback(null);
+        }
+        super.onDestroy();
+        try {
+            trimCache(this);
+        } catch (Exception e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+    }
+    private void initAllKeys() {
+        isSimulatorActived = FlightControllerKey.create(FlightControllerKey.IS_SIMULATOR_ACTIVE);
+    }
+    /**Sending Messages**/
+    private void sendError(String message){
+        JSONObject jsonError = new JSONObject();
+        try {
+            jsonError.put("error", message);
+        } catch (JSONException e) {
+            e.printStackTrace();
+        }
+        socket.emit("newError", jsonError);
+    }
+    private void showToast(String s) {
+        Toast.makeText(getApplicationContext(), s, Toast.LENGTH_SHORT).show();
+    }
     private void sendMessageConnected() {
         if(socket.connected()){
             JSONObject jsonRCStatus = new JSONObject();
@@ -707,7 +669,6 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
             socket.emit("newRCConnectionStatus",jsonRCStatus);
         }
     }
-
     private void sendMessageDisconnected() {
         if(socket.connected()){
             JSONObject jsonRCStatus = new JSONObject();
@@ -720,207 +681,6 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
             socket.emit("newRCConnectionStatus",jsonRCStatus);
         }
     }
-
-    /**
-     * Init a fake texture view to for the codec manager, so that the video raw data can be received
-     * by the camera
-     */
-    private void initPreviewerTextureView() {
-        videostreamPreviewTtView.setSurfaceTextureListener(new TextureView.SurfaceTextureListener() {
-            @Override
-            public void onSurfaceTextureAvailable(SurfaceTexture surface, int width, int height) {
-                Log.d(TAG, "real onSurfaceTextureAvailable");
-                videoViewWidth = width;
-                videoViewHeight = height;
-                System.out.println("real onSurfaceTextureAvailable: width " + videoViewWidth + " height " + videoViewHeight);
-                if (mCodecManager == null) {
-                    mCodecManager = new DJICodecManager(getApplicationContext(), surface, width, height);
-                }
-                //imageA = Bitmap.createBitmap(1280, 720, Bitmap.Config.ARGB_8888);
-
-            }
-
-            @Override
-            public void onSurfaceTextureSizeChanged(SurfaceTexture surface, int width, int height) {
-                videoViewWidth = width;
-                videoViewHeight = height;
-                Log.d(TAG, "real onSurfaceTextureAvailable2: width " + videoViewWidth + " height " + videoViewHeight);
-            }
-
-            @Override
-            public boolean onSurfaceTextureDestroyed(SurfaceTexture surface) {
-                if (mCodecManager != null) {
-                    mCodecManager.cleanSurface();
-                }
-                if(imageA!=null)
-                imageA.recycle();
-                imageA = null;
-                return false;
-            }
-
-            @Override
-            public void onSurfaceTextureUpdated(SurfaceTexture surface) {
-
-            }
-        });
-    }
-
-    /**
-     * Init a surface view for the DJIVideoStreamDecoder
-     */
-    private void initPreviewerSurfaceView() {
-        videostreamPreviewSh = videostreamPreviewSf.getHolder();
-        surfaceCallback = new SurfaceHolder.Callback() {
-            @Override
-            public void surfaceCreated(SurfaceHolder holder) {
-                Log.d("SURFACE", "real onSurfaceTextureAvailable");
-                videoViewWidth = videostreamPreviewSf.getWidth();
-                videoViewHeight = videostreamPreviewSf.getHeight();
-                Log.d(TAG, "real onSurfaceTextureAvailable3: width " + videoViewWidth + " height " + videoViewHeight);
-                switch (demoType) {
-                    case USE_SURFACE_VIEW:
-                        if (mCodecManager == null) {
-
-                            mCodecManager = new DJICodecManager(getApplicationContext(), holder, videoViewWidth,
-                                                                videoViewHeight);
-                        }
-                        break;
-                    case USE_SURFACE_VIEW_DEMO_DECODER:
-                        // This demo might not work well on P3C and OSMO.
-                        NativeHelper.getInstance().init();
-                        DJIVideoStreamDecoder.getInstance().init(getApplicationContext(), holder.getSurface());
-                        DJIVideoStreamDecoder.getInstance().setYuvDataListener(MainActivity.this);
-                        DJIVideoStreamDecoder.getInstance().resume();
-                        break;
-                }
-
-            }
-
-            @Override
-            public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
-                videoViewWidth = width;
-                videoViewHeight = height;
-                Log.d(TAG, "real onSurfaceTextureAvailable4: width " + videoViewWidth + " height " + videoViewHeight);
-                switch (demoType) {
-                    case USE_SURFACE_VIEW:
-                        //mCodecManager.onSurfaceSizeChanged(videoViewWidth, videoViewHeight, 0);
-                        break;
-                    case USE_SURFACE_VIEW_DEMO_DECODER:
-                        DJIVideoStreamDecoder.getInstance().changeSurface(holder.getSurface());
-                        break;
-                }
-
-            }
-
-            @Override
-            public void surfaceDestroyed(SurfaceHolder holder) {
-                switch (demoType) {
-                    case USE_SURFACE_VIEW:
-                        if (mCodecManager != null) {
-                            mCodecManager.cleanSurface();
-                            mCodecManager.destroyCodec();
-                            mCodecManager = null;
-                        }
-                        break;
-                    case USE_SURFACE_VIEW_DEMO_DECODER:
-                        DJIVideoStreamDecoder.getInstance().stop();
-                        NativeHelper.getInstance().release();
-                        break;
-                }
-
-            }
-        };
-
-        videostreamPreviewSh.addCallback(surfaceCallback);
-    }
-
-
-    @Override
-    public void onYuvDataReceived(final ByteBuffer yuvFrame, int dataSize, final int width, final int height) {
-        if (count++ % Constants.fps == 0 && yuvFrame != null) {
-            incomingTimeMs=System.currentTimeMillis();
-            final byte[] bytes = new byte[dataSize];
-            yuvFrame.get(bytes);
-            AsyncTask.execute(new Runnable() {
-                @Override
-                public void run() {
-                    saveYuvDataToJPEG(bytes, width, height);
-                }
-            });
-        }
-    }
-
-    private void saveYuvDataToJPEG(byte[] yuvFrame, int width, int height){
-        byte[] y = new byte[width * height];
-        byte[] u = new byte[width * height / 4];
-        byte[] v = new byte[width * height / 4];
-        byte[] nu = new byte[width * height / 4]; //
-        byte[] nv = new byte[width * height / 4];
-
-        System.arraycopy(yuvFrame, 0, y, 0, y.length);
-        for (int i = 0; i < u.length; i++) {
-            v[i] = yuvFrame[y.length + 2 * i];
-            u[i] = yuvFrame[y.length + 2 * i + 1];
-        }
-        int uvWidth = width / 2;
-        int uvHeight = height / 2;
-        for (int j = 0; j < uvWidth / 2; j++) {
-            for (int i = 0; i < uvHeight / 2; i++) {
-                byte uSample1 = u[i * uvWidth + j];
-                byte uSample2 = u[i * uvWidth + j + uvWidth / 2];
-                byte vSample1 = v[(i + uvHeight / 2) * uvWidth + j];
-                byte vSample2 = v[(i + uvHeight / 2) * uvWidth + j + uvWidth / 2];
-                nu[2 * (i * uvWidth + j)] = uSample1;
-                nu[2 * (i * uvWidth + j) + 1] = uSample1;
-                nu[2 * (i * uvWidth + j) + uvWidth] = uSample2;
-                nu[2 * (i * uvWidth + j) + 1 + uvWidth] = uSample2;
-                nv[2 * (i * uvWidth + j)] = vSample1;
-                nv[2 * (i * uvWidth + j) + 1] = vSample1;
-                nv[2 * (i * uvWidth + j) + uvWidth] = vSample2;
-                nv[2 * (i * uvWidth + j) + 1 + uvWidth] = vSample2;
-            }
-        }
-        //nv21test
-        byte[] bytes = new byte[yuvFrame.length];
-        System.arraycopy(y, 0, bytes, 0, y.length);
-        for (int i = 0; i < u.length; i++) {
-            bytes[y.length + (i * 2)] = nv[i];
-            bytes[y.length + (i * 2) + 1] = nu[i];
-        }
-        screenShot(bytes, width, height);
-    }
-
-
-    private void screenShot(byte[] buf, int width, int height) {
-        yuvImage = new YuvImage(buf,ImageFormat.NV21,width,height,null);
-        baos=new ByteArrayOutputStream();
-        yuvImage.compressToJpeg(new Rect(0,0,width,height), Constants.qualityPercent,baos);
-        tmp = bytesToMat(baos.toByteArray());
-        handler.post(DoImageProcessing);
-    }
-    private Runnable DoImageProcessing = new Runnable() {
-        public void run() {
-            humanDetection(tmp.getNativeObjAddr());
-            Utils.matToBitmap(tmp,imageA);
-            //imViewA.setImageBitmap(imageA);
-            baos =new ByteArrayOutputStream();
-            imageA.compress(Bitmap.CompressFormat.JPEG, 100, baos);
-            outputTimeMS=System.currentTimeMillis();
-            mFrames=baos;
-            timesTampNeeded=outputTimeMS-incomingTimeMs;
-        }
-    };
-    private Mat bytesToMat(byte[] data) {
-        BitmapFactory.Options options = new BitmapFactory.Options();
-        options.inPreferredConfig = Bitmap.Config.ARGB_8888;
-        imageA = BitmapFactory.decodeByteArray(data, 0, data.length,options);
-        Mat BGRImage = new Mat (imageA.getWidth(), imageA.getHeight(), CvType.CV_8UC3);
-        Utils.bitmapToMat(imageA, BGRImage);
-        return BGRImage;
-    }
-    /**
-     * Transmit buffered data into a JPG image file
-     */
     public void onClick(View v) {
 
         if (v.getId() == R.id.activity_main_screen_shot) {
@@ -1022,6 +782,7 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         int minutes = sec / 60;
         return String.format("%02d:%02d", minutes, seconds);
     }
+    /**Deleting cache**/
     public void trimCache(Context context) {
         try {
             File dir = context.getCacheDir();
@@ -1032,7 +793,6 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
             // TODO: handle exception
         }
     }
-
     public static boolean deleteDir(File dir) {
         if (dir != null && dir.isDirectory()) {
             String[] children = dir.list();
@@ -1047,4 +807,231 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         // The directory is now empty so delete it
         return dir.delete();
     }
+    /**
+     * Transmit buffered data into a JPG image file
+     */
+    @Override
+    public void onYuvDataReceived(final ByteBuffer yuvFrame, int dataSize, final int width, final int height) {
+        if (count++ % Constants.fps == 0 && yuvFrame != null) {
+            incomingTimeMs=System.currentTimeMillis();
+            final byte[] bytes = new byte[dataSize];
+            yuvFrame.get(bytes);
+            if(bytes.length>0){
+                AsyncTask.execute(new Runnable() {
+                    @Override
+                    public void run() {
+                        saveYuvDataToJPEG(bytes, width, height);
+                    }
+                });
+            }
+        }
+    }
+    private void saveYuvDataToJPEG(byte[] yuvFrame, int width, int height){
+        byte[] y = new byte[width * height];
+        byte[] u = new byte[width * height / 4];
+        byte[] v = new byte[width * height / 4];
+        byte[] nu = new byte[width * height / 4]; //
+        byte[] nv = new byte[width * height / 4];
+
+        System.arraycopy(yuvFrame, 0, y, 0, y.length);
+        for (int i = 0; i < u.length; i++) {
+            v[i] = yuvFrame[y.length + 2 * i];
+            u[i] = yuvFrame[y.length + 2 * i + 1];
+        }
+        int uvWidth = width / 2;
+        int uvHeight = height / 2;
+        for (int j = 0; j < uvWidth / 2; j++) {
+            for (int i = 0; i < uvHeight / 2; i++) {
+                byte uSample1 = u[i * uvWidth + j];
+                byte uSample2 = u[i * uvWidth + j + uvWidth / 2];
+                byte vSample1 = v[(i + uvHeight / 2) * uvWidth + j];
+                byte vSample2 = v[(i + uvHeight / 2) * uvWidth + j + uvWidth / 2];
+                nu[2 * (i * uvWidth + j)] = uSample1;
+                nu[2 * (i * uvWidth + j) + 1] = uSample1;
+                nu[2 * (i * uvWidth + j) + uvWidth] = uSample2;
+                nu[2 * (i * uvWidth + j) + 1 + uvWidth] = uSample2;
+                nv[2 * (i * uvWidth + j)] = vSample1;
+                nv[2 * (i * uvWidth + j) + 1] = vSample1;
+                nv[2 * (i * uvWidth + j) + uvWidth] = vSample2;
+                nv[2 * (i * uvWidth + j) + 1 + uvWidth] = vSample2;
+            }
+        }
+        //nv21test
+        byte[] bytes = new byte[yuvFrame.length];
+        System.arraycopy(y, 0, bytes, 0, y.length);
+        for (int i = 0; i < u.length; i++) {
+            bytes[y.length + (i * 2)] = nv[i];
+            bytes[y.length + (i * 2) + 1] = nu[i];
+        }
+        screenShot(bytes, width, height);
+    }
+    private void screenShot(byte[] buf, int width, int height) {
+        yuvImage = new YuvImage(buf,ImageFormat.NV21,width,height,null);
+        baos=new ByteArrayOutputStream();
+        yuvImage.compressToJpeg(new Rect(0,0,width,height), Constants.qualityPercent,baos);
+        if(baos.toByteArray().length>0){
+        tmp = bytesToMat(baos.toByteArray());
+        handler.post(DoImageProcessing);
+        }
+    }
+    private Runnable DoImageProcessing = new Runnable() {
+        public void run() {
+            humanDetection(tmp.getNativeObjAddr());
+            Utils.matToBitmap(tmp,imageA);
+            //imViewA.setImageBitmap(imageA);
+            baos =new ByteArrayOutputStream();
+            imageA.compress(Bitmap.CompressFormat.JPEG, 100, baos);
+            outputTimeMS=System.currentTimeMillis();
+            mFrames=baos;
+            timesTampNeeded=outputTimeMS-incomingTimeMs;
+        }
+    };
+    private Mat bytesToMat(byte[] data) {
+        BitmapFactory.Options options = new BitmapFactory.Options();
+        options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+        imageA = BitmapFactory.decodeByteArray(data, 0, data.length,options);
+        Mat BGRImage = new Mat (imageA.getWidth(), imageA.getHeight(), CvType.CV_8UC3);
+        Utils.bitmapToMat(imageA, BGRImage);
+        return BGRImage;
+    }
+
+
+    /**Screen Events to control the aircraft**/
+    public Emitter.Listener joystickPossitionChanged = new Emitter.Listener() {
+        @Override
+        public void call(final Object... args) {
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    myAwesomeTextView.setText(args[0].toString());
+                }
+            });
+
+        }
+    };
+    public Emitter.Listener returnToHomeChanged = new Emitter.Listener() {
+        @Override
+        public void call(final Object... args) {
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (ModuleVerificationUtil.isFlightControllerAvailable()) {
+                        flightController =((Aircraft) DJIApplication.getProductInstance()).getFlightController();
+                        flightController.startGoHome(new CommonCallbacks.CompletionCallback() {
+                            @Override
+                            public void onResult(DJIError djiError) {
+                                if(djiError!=null){
+                                    sendError(djiError.getDescription());
+                                    myAwesomeTextView.setText(djiError.getDescription());
+                                }
+                            }
+                        });
+                    }
+                    else {
+                        myAwesomeTextView.setText("FlightController not available Landing Go Home");
+                    }
+                }
+            });
+
+        }
+    };
+    public Emitter.Listener homeChanged = new Emitter.Listener() {
+        @Override
+        public void call(final Object... args) {
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (ModuleVerificationUtil.isFlightControllerAvailable()) {
+                        flightController =((Aircraft) DJIApplication.getProductInstance()).getFlightController();
+                        if(flightController.getState().isFlying()){
+                            flightController.setHomeLocation(new LocationCoordinate2D(periodicalStateData.getAircraftLatitude(), periodicalStateData.getAircraftLongitude()), new CommonCallbacks.CompletionCallback() {
+                                @Override
+                                public void onResult(DJIError djiError) {
+                                    if(djiError!=null)
+                                        sendError(djiError.getDescription());
+                                }
+                            });
+                            JSONObject homeLocation = new JSONObject();
+                            try {
+                                homeLocation.put("latitude",formatLatitude.format(periodicalStateData.getAircraftLatitude()));
+                                homeLocation.put("longitude",formatLongitude.format(periodicalStateData.getAircraftLongitude()));
+                                System.out.println();
+                            } catch (JSONException e) {
+                                e.printStackTrace();
+                            }
+                            socket.emit("newHomeLocation", homeLocation);
+                        }
+                    }
+                    else {
+                        myAwesomeTextView.setText("FlightController not available Landing Go Home");
+                    }
+                }
+            });
+
+        }
+    };
+    public Emitter.Listener landingChanged = new Emitter.Listener() {
+        @Override
+        public void call(final Object... args) {
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (ModuleVerificationUtil.isFlightControllerAvailable()) {
+                        flightController =((Aircraft) DJIApplication.getProductInstance()).getFlightController();
+                        if(flightController.getState().isFlying()){
+                            flightController.startLanding(new CommonCallbacks.CompletionCallback() {
+                                @Override
+                                public void onResult(DJIError djiError) {
+                                    if(djiError!=null){
+                                        myAwesomeTextView.setText(djiError.getDescription());
+                                        sendError(djiError.getDescription());
+                                    }
+                                }
+                            });
+                        }
+                    }
+                    else {
+                        myAwesomeTextView.setText("FlightController not available Landing");
+                    }
+
+                }
+            });
+
+        }
+    };
+    public Emitter.Listener takeOffChanged = new Emitter.Listener() {
+        @Override
+        public void call(final Object... args) {
+            activity.runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (ModuleVerificationUtil.isFlightControllerAvailable()) {
+                        flightController =((Aircraft) DJIApplication.getProductInstance()).getFlightController();
+                        if(!flightController.getState().isFlying()){
+                            flightController.startTakeoff(new CommonCallbacks.CompletionCallback() {
+                                @Override
+                                public void onResult(DJIError djiError) {
+                                    if(djiError!=null){
+                                        myAwesomeTextView.setText(djiError.getDescription());
+                                        sendError(djiError.getDescription());
+                                    }
+                                }
+                            });
+
+                        }
+                        else{
+                            myAwesomeTextView.setText(" TakeOff, but is flying");
+                        }
+
+                    }
+                    else {
+                        myAwesomeTextView.setText("FlightController not available TakeOff");
+                    }
+
+
+                }
+            });
+
+        }
+    };
 }

@@ -25,20 +25,16 @@ import android.widget.Toast;
 
 
 import com.dji.videostreamdecodingsample.R;
+import com.dji.videostreamdecodingsample.main.Constants;
 import com.dji.videostreamdecodingsample.main.DJIApplication;
-import com.dji.videostreamdecodingsample.services.Cache;
+import com.dji.videostreamdecodingsample.models.PeriodicalStateData;
 import com.dji.videostreamdecodingsample.utils.ModuleVerificationUtil;
-
 import org.opencv.android.OpenCVLoader;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-
 import dji.common.error.DJIError;
 import dji.common.error.DJISDKError;
-import dji.common.useraccount.UserAccountState;
-import dji.common.util.CommonCallbacks;
 import dji.keysdk.DJIKey;
 import dji.keysdk.KeyManager;
 import dji.keysdk.ProductKey;
@@ -48,9 +44,7 @@ import dji.sdk.base.BaseComponent;
 import dji.sdk.base.BaseProduct;
 import dji.sdk.products.Aircraft;
 import dji.sdk.sdkmanager.DJISDKManager;
-import dji.sdk.useraccount.UserAccountManager;
-import io.socket.client.Socket;
-import io.socket.emitter.Emitter;
+
 
 public class ConnectionActivity extends Activity implements View.OnClickListener {
     //Mobile SDK
@@ -75,6 +69,7 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
     private TextView mTextProduct;
     private TextView mTextModelAvailable;
     private EditText mBridgeModeEditText;
+    private EditText mServerText;
     private Button mBtnOpen;
     static {
         if(OpenCVLoader.initDebug()){
@@ -259,6 +254,7 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
         mTextModelAvailable = (TextView) findViewById(R.id.text_model_available);
         mTextProduct = (TextView) findViewById(R.id.text_product_info);
         mBridgeModeEditText = (EditText) findViewById(R.id.edittext_bridge_ip);
+        mServerText = (EditText) findViewById(R.id.server_ip);
         mBtnOpen = (Button) findViewById(R.id.btn_open);
         mBtnOpen.setOnClickListener(this);
         mBtnOpen.setEnabled(false);
@@ -281,6 +277,24 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
                 return false; // pass on to other listeners.
             }
         });
+        mServerText.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+                if (actionId == EditorInfo.IME_ACTION_SEARCH
+                        || actionId == EditorInfo.IME_ACTION_DONE
+                        || event != null
+                        && event.getAction() == KeyEvent.ACTION_DOWN
+                        && event.getKeyCode() == KeyEvent.KEYCODE_ENTER) {
+                    if (event != null && event.isShiftPressed()) {
+                        return false;
+                    } else {
+                        // the user is done typing.
+                        handleServerIPTextChange();
+                    }
+                }
+                return false; // pass on to other listeners.
+            }
+        });
 
         mBridgeModeEditText.addTextChangedListener(new TextWatcher() {
             @Override
@@ -297,9 +311,26 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
                 if (s != null && s.toString().contains("\n")) {
                     // the user is done typing.
                     // remove new line characcter
-                    final String currentText = mBridgeModeEditText.getText().toString();
-                    mBridgeModeEditText.setText(currentText.substring(0, currentText.indexOf('\n')));
+                    final String currentText = mServerText.getText().toString();
+                    mServerText.setText(currentText.substring(0, currentText.indexOf('\n')));
                     handleBridgeIPTextChange();
+                }
+            }
+        });
+        mServerText.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (s != null && s.toString().contains("\n")) {
+                    Constants.ip = mServerText.getText().toString();
                 }
             }
         });
@@ -313,6 +344,11 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
             showToast("BridgeMode ON!\nIP: " + bridgeIP);
         }
     }
+    private void handleServerIPTextChange() {
+        // the user is done typing.
+        Constants.ip = mServerText.getText().toString();
+    }
+
     private void updateTitleBar() {
         boolean ret = false;
         BaseProduct product = DJIApplication.getProductInstance();

@@ -9,6 +9,7 @@ import android.util.Log;
 import com.dji.videostreamdecodingsample.activities.MainActivity;
 import com.dji.videostreamdecodingsample.main.Constants;
 
+import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -56,6 +57,7 @@ public class Server implements  Runnable{
 				}
 			});
 			while (true) {
+
 				Socket socket = serverSocket.accept();
 				message = "#"+socket.toString()  + " from "
 						+ socket.getInetAddress() + ":"
@@ -74,8 +76,8 @@ public class Server implements  Runnable{
 
 		SocketServerReplyThread(Socket socket) {
 			hostThreadSocket = socket;
-		}
 
+		}
 		@Override
 		public void run() {
 			if(hostThreadSocket!=null){
@@ -91,7 +93,7 @@ public class Server implements  Runnable{
 						dos.flush();
 						Thread.sleep(mActivityInstance.timesTampNeeded);
 					}
-				} catch (Exception e) {
+                } catch (Exception e) {
 					e.printStackTrace();
 					try {
 						if (outputStream!= null)
