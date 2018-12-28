@@ -29,7 +29,6 @@ import com.dji.videostreamdecodingsample.main.Constants;
 import com.dji.videostreamdecodingsample.main.DJIApplication;
 import com.dji.videostreamdecodingsample.models.PeriodicalStateData;
 import com.dji.videostreamdecodingsample.utils.ModuleVerificationUtil;
-import org.opencv.android.OpenCVLoader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -71,14 +70,6 @@ public class ConnectionActivity extends Activity implements View.OnClickListener
     private EditText mBridgeModeEditText;
     private EditText mServerText;
     private Button mBtnOpen;
-    static {
-        if(OpenCVLoader.initDebug()){
-            System.out.println("OpenCV ok");
-
-        }
-        else
-            System.out.println("OpenCV Not working");
-    }
     private KeyListener firmVersionListener = new KeyListener() {
         @Override
         public void onValueChange(@Nullable Object oldValue, @Nullable Object newValue) {

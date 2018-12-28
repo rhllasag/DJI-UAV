@@ -35,9 +35,7 @@ import com.dji.videostreamdecodingsample.utils.ModuleVerificationUtil;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.opencv.android.Utils;
-import org.opencv.core.CvType;
-import org.opencv.core.Mat;
+
 
 import dji.common.battery.BatteryState;
 import dji.common.camera.SettingsDefinitions;
@@ -116,7 +114,7 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
     private static final String TAG = MainActivity.class.getSimpleName();
     private SurfaceHolder.Callback surfaceCallback;
     private Handler handler = new Handler();
-    private Mat tmp;
+    //private Mat tmp;
     private YuvImage yuvImage;
     private enum DemoType { USE_TEXTURE_VIEW, USE_SURFACE_VIEW, USE_SURFACE_VIEW_DEMO_DECODER}
     private static DemoType demoType = DemoType.USE_TEXTURE_VIEW;
@@ -863,9 +861,9 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
             bytes[y.length + (i * 2)] = nv[i];
             bytes[y.length + (i * 2) + 1] = nu[i];
         }
-        screenShot(bytes, width, height);
+        //screenShot(bytes, width, height);
     }
-    private void screenShot(byte[] buf, int width, int height) {
+/*    private void screenShot(byte[] buf, int width, int height) {
         yuvImage = new YuvImage(buf,ImageFormat.NV21,width,height,null);
         baos=new ByteArrayOutputStream();
         yuvImage.compressToJpeg(new Rect(0,0,width,height), Constants.qualityPercent,baos);
@@ -893,7 +891,7 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         Mat BGRImage = new Mat (imageA.getWidth(), imageA.getHeight(), CvType.CV_8UC3);
         Utils.bitmapToMat(imageA, BGRImage);
         return BGRImage;
-    }
+    }*/
 
 
     /**Screen Events to control the aircraft**/
