@@ -805,6 +805,7 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
     /**
      * Transmit buffered data into a JPG image file
      */
+
     @Override
     public void onYuvDataReceived(final ByteBuffer yuvFrame, int dataSize, final int width, final int height) {
         if (count++ % Constants.fps == 0 && yuvFrame != null) {
