@@ -137,9 +137,6 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
     static {
         System.loadLibrary("native-lib");
     }
-    private native void computerVision(Bitmap pTarget, byte[] pSource);
-    private  native void humanDetection(long addrRgba);
-
     @Override
     protected void onResume() {
         super.onResume();

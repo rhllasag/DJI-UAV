@@ -28,7 +28,9 @@
     <uses-feature
         android:name="android.hardware.usb.accessory"
         android:required="true"/>
-
+    <uses-sdk
+        android:minSdkVersion="21"
+        android:targetSdkVersion="23" />
     <application
         android:name=".main.DJIApplication"
         android:icon="@mipmap/ic_launcher"
