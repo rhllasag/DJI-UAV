@@ -747,7 +747,7 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         if (screenShot.isSelected()) {
             screenShot.setText("Transmit");
             screenShot.setSelected(false);
-
+            socket.emit("disconnectSocket", new JSONObject());
             switch (demoType) {
                 case USE_SURFACE_VIEW:
                 case USE_TEXTURE_VIEW:
@@ -763,7 +763,7 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
         } else {
             screenShot.setText("Live here");
             screenShot.setSelected(true);
-
+            socket.emit("connectSocket", new JSONObject());
             switch (demoType) {
                 case USE_TEXTURE_VIEW:
                 case USE_SURFACE_VIEW:
@@ -897,6 +897,7 @@ public class MainActivity extends Activity implements DJICodecManager.YuvDataCal
 
 
     /**Screen Events to control the aircraft**/
+
     public Emitter.Listener joystickPossitionChanged = new Emitter.Listener() {
         @Override
         public void call(final Object... args) {
